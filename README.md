@@ -22,8 +22,11 @@ pacman -S mingw-w64-i686-gcc
 
 ## 📁 Project Structure
 assembly-rogue/
+
 ├── main.asm ; Your assembly code
+
 ├── build.bat ; Script to compile and link
+
 └── README.md ; (this file)
 
 
@@ -67,8 +70,11 @@ pacman -S mingw-w64-i686-gcc
 
 ## 📁 Estrutura do projeto
 assembly-rogue/
+
 ├── main.asm ; Seu código Assembly
+
 ├── build.bat ; Script de build
+
 └── README.md ; (este arquivo)
 
 
