@@ -1,8 +1,3 @@
-STD_OUT_HANDLE      equ -11 ; -11 é basicamente um ID do windows que representa o output no console (stdin)
-STD_INPUT_HANDLE    equ -10 ; -10 é o input no console (stdout)
-                            ; -12 é erro padrão (stderr)
-
-
 ; stdcalls não precisam de add esp, <qtde de parametros> pois elas ja fazem isso por padrão 
 extern _ExitProcess@4   ; Usa-se os decoradores no final indicando quantos parametros essas funções recebe, cada 1 parametro corresponde a 4 bytes
 extern _WriteFile@20    ; 5 parametros
@@ -12,10 +7,28 @@ extern _ReadConsoleInputA@16
 extern _Sleep@4
 extern _
 
+STD_OUT_HANDLE      equ -11 ; -11 é basicamente um ID do windows que representa o output no console (stdin)
+STD_INPUT_HANDLE    equ -10 ; -10 é o input no console (stdout)
+                            ; -12 é erro padrão (stderr)
+
+MAX_MONSTERS        equ 12
+
+MONSTER_HP equ 0
+MONSTER_ATK equ 1
+MONSTER_GOLD equ 2
+MONSTER_X equ 3
+MONSTER_Y equ 4
+MONSTER_DEAD equ 5
+MONSTER_PAD1 equ 6
+MONSTER_PAD2 equ 7
+MONSTER_SIZE equ 8
+
 global _main
 
 section .bss
     num_buffer resb 1
+
+    monsters resb MONSTER_SIZE * MAX_MONSTERS
 
 section .data
     output_handle dd 0
@@ -42,13 +55,10 @@ section .data
 
     hud_hp db "HP:"
     hud_hp_len equ $-hud_hp
-
     hud_atk db " ATK:"
     hud_atk_len equ $-hud_atk
-
     hud_food db " FOOD:"
     hud_food_len equ $-hud_food
-
     hud_gold db " GOLD:"
     hud_gold_len equ $-hud_gold
 
@@ -60,8 +70,6 @@ section .data
     "--------||||--------", 13,10, \
     "--------------------", 13,10, 13,10, 0
     game_over_msg_len equ $-game_over_msg
-
-    goblin_pos dd 16
 
 section .text
 _main:
@@ -233,6 +241,10 @@ _main:
     
     .game_over:
         push 0
+        call spawn_monster
+        add esp, 4
+
+        push 0
         push 0
         push game_over_msg_len
         push game_over_msg
@@ -298,3 +310,17 @@ print_char:
     pop ebp
     ret
 
+spawn_monster:
+    push ebp
+    mov ebp, esp
+    mov eax, [ebp + 8]
+
+    imul eax, MONSTER_SIZE
+    mov byte [monsters + eax + MONSTER_HP], 10
+
+    push dword [monsters + eax + MONSTER_HP]
+    call print_num
+    add esp, 4
+
+    pop ebp
+    ret
