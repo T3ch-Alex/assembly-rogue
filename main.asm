@@ -13,15 +13,16 @@ STD_INPUT_HANDLE    equ -10 ; -10 é o input no console (stdout)
 
 MAX_MONSTERS        equ 12
 
-MONSTER_HP equ 0
-MONSTER_ATK equ 1
-MONSTER_GOLD equ 2
-MONSTER_X equ 3
-MONSTER_Y equ 4
-MONSTER_DEAD equ 5
-MONSTER_PAD1 equ 6
-MONSTER_PAD2 equ 7
-MONSTER_SIZE equ 8
+MONSTER_HP          equ 0      ; dword (bytes offset 0)
+MONSTER_ATK         equ 4
+MONSTER_GOLD        equ 8
+MONSTER_X           equ 12
+MONSTER_Y           equ 16
+MONSTER_DEAD        equ 20
+MONSTER_PAD1        equ 24
+MONSTER_PAD2        equ 28
+
+MONSTER_SIZE        equ 32
 
 global _main
 
@@ -103,7 +104,6 @@ _main:
         push 1  
         push esi                      
         call print_char      
-        add esp, 8
 
         inc esi
         jmp .draw
@@ -112,11 +112,9 @@ _main:
         push hud_hp_len
         push hud_hp                   
         call print_char      
-        add esp, 8
 
         push dword [player_hp]
         call print_num
-        add esp, 4
 
         push hud_atk_len
         push hud_atk                   
@@ -125,25 +123,20 @@ _main:
 
         push dword [player_atk]
         call print_num
-        add esp, 4
 
         push hud_food_len
         push hud_food                   
         call print_char      
-        add esp, 8
 
         push dword [player_food]
         call print_num
-        add esp, 4
 
         push hud_gold_len
         push hud_gold                   
         call print_char      
-        add esp, 8
 
         push dword [player_gold]
         call print_num
-        add esp, 4
 
     .input:
         push events_read
@@ -237,12 +230,15 @@ _main:
 
         dec dword [player_food]
 
+        push 0
+        call monster_spawn
+
         jmp .update
     
     .game_over:
-        push 0
-        call spawn_monster
-        add esp, 4
+        ; push 0
+        ; call monster_spawn
+    
 
         push 0
         push 0
@@ -286,13 +282,12 @@ print_num:
         push 1
         push num_buffer
         call print_char
-        add esp, 8
 
         jmp .print_num_loop2
 
     .print_num_done:
         pop ebp
-        ret
+        ret 4
 
 print_char:
     push ebp
@@ -308,19 +303,40 @@ print_char:
     call _WriteFile@20
 
     pop ebp
-    ret
+    ret 8
 
-spawn_monster:
+monster_spawn:
     push ebp
     mov ebp, esp
     mov eax, [ebp + 8]
 
     imul eax, MONSTER_SIZE
-    mov byte [monsters + eax + MONSTER_HP], 10
+    mov edi, eax
+    mov dword [monsters + edi + MONSTER_HP], 10
+    mov dword [monsters + edi + MONSTER_ATK], 2
+    mov dword [monsters + edi + MONSTER_GOLD], 5
+    mov dword [monsters + edi + MONSTER_X], 3
+    mov dword [monsters + edi + MONSTER_Y], 2
+    mov dword [monsters + edi + MONSTER_DEAD], 0
+    
+    mov ecx, [monsters + edi + MONSTER_Y]
+    imul ecx, map_line
+    
+    mov ebx, [monsters + edi + MONSTER_X]
+    add ecx, ebx
+    
+    mov byte [map_data + ecx], 'M'
 
-    push dword [monsters + eax + MONSTER_HP]
-    call print_num
-    add esp, 4
+    ;push dword [monsters + eax + MONSTER_HP]
+    ;call print_num
 
     pop ebp
     ret
+
+monster_find:
+    push ebp
+    mov ebp, esp
+    mov eax, [ebp + 8]
+    mov ebx, [ebp + 12]
+
+    mov ecx, 0
