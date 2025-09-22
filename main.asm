@@ -1,4 +1,5 @@
 ; stdcalls não precisam de add esp, <qtde de parametros> pois elas ja fazem isso por padrão 
+; também, não há necessidade de add esp depois de usar call, se especificar quantos parametros (params * 4 bytes) foram chamados nos ret de cada função
 extern _ExitProcess@4   ; Usa-se os decoradores no final indicando quantos parametros essas funções recebe, cada 1 parametro corresponde a 4 bytes
 extern _WriteFile@20    ; 5 parametros
 extern _GetStdHandle@4  ; 1 parametro
@@ -19,10 +20,7 @@ MONSTER_GOLD        equ 8
 MONSTER_X           equ 12
 MONSTER_Y           equ 16
 MONSTER_DEAD        equ 20
-MONSTER_PAD1        equ 24
-MONSTER_PAD2        equ 28
-
-MONSTER_SIZE        equ 32
+MONSTER_SIZE        equ 24
 
 global _main
 
@@ -53,6 +51,12 @@ section .data
     player_atk dd 1
     player_food dd 50
     player_gold dd 0
+
+    monster_found db "Found!"
+    monster_found_length equ $-monster_found
+
+    monster_nfound db "Not Found!"
+    monster_nfound_length equ $-monster_nfound
 
     hud_hp db "HP:"
     hud_hp_len equ $-hud_hp
@@ -234,12 +238,8 @@ _main:
         call monster_spawn
 
         jmp .update
-    
-    .game_over:
-        ; push 0
-        ; call monster_spawn
-    
 
+    .game_over:
         push 0
         push 0
         push game_over_msg_len
@@ -249,6 +249,109 @@ _main:
 
         push 1
         call _ExitProcess@4
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;; Map
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+map_coord_index:
+    push ebp
+    mov ebp, esp
+    mov eax, [ebp + 8]  ; X
+    mov ebx, [ebp + 12] ; Y
+
+    imul ebx, map_line  ; Y * map_line
+    add eax, ebx        ; (Y * map_line) + X = index
+
+    pop ebp
+    ret 8
+
+map_index_coord:
+    push ebp
+    mov ebp, esp
+    mov eax, [ebp + 8]  ; index
+
+    sub eax, 
+    imul ebx, map_line
+    add eax, ebx
+
+    pop ebp
+    ret 8
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;; Monsters
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+monster_spawn:
+    push ebp
+    mov ebp, esp
+    mov eax, [ebp + 8]
+
+    imul eax, MONSTER_SIZE
+    mov edi, eax
+    mov dword [monsters + edi + MONSTER_HP], 10
+    mov dword [monsters + edi + MONSTER_ATK], 2
+    mov dword [monsters + edi + MONSTER_GOLD], 5
+    mov dword [monsters + edi + MONSTER_X], 3
+    mov dword [monsters + edi + MONSTER_Y], 2
+    mov dword [monsters + edi + MONSTER_DEAD], 0
+
+    push dword [monsters + edi + MONSTER_Y]
+    push dword [monsters + edi + MONSTER_X]
+    call map_coord_index
+    
+    mov byte [map_data + eax], 'M'
+
+    pop ebp
+    ret 4
+
+monster_find:
+    push ebp
+    mov ebp, esp
+    mov eax, [ebp + 8]  ; X
+    mov ebx, [ebp + 12] ; Y
+
+    mov esi, monsters
+    mov ecx, 0
+
+    .monster_find_loop:
+        cmp ecx, MAX_MONSTERS
+        je .monster_not_found
+
+        mov edx, [monsters + ecx + MONSTER_X]
+        cmp eax, edx
+        je .monster_x_eq
+
+        inc ecx
+        jmp .monster_find_loop
+    
+    .monster_x_eq:
+        mov edx, [monsters + ecx + MONSTER_Y]
+        cmp ebx, edx
+        je .monster_found
+
+        inc ecx
+        jmp .monster_find_loop
+    
+    .monster_found:
+        ; mov eax, ecx
+
+        push monster_found_length
+        push monster_found
+        call print_char
+
+        pop ebp
+        ret 8
+
+    .monster_not_found:
+        ; mov eax, -1
+
+        push monster_nfound_length
+        push monster_nfound
+        call print_char
+
+        pop ebp
+        ret 8
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;; Utils
@@ -268,7 +371,6 @@ print_num:
         add edx, 0x30
         push edx
 
-        ;dec dword [num_divider]
         cmp eax, 0
         jne .print_num_loop
 
@@ -304,39 +406,3 @@ print_char:
 
     pop ebp
     ret 8
-
-monster_spawn:
-    push ebp
-    mov ebp, esp
-    mov eax, [ebp + 8]
-
-    imul eax, MONSTER_SIZE
-    mov edi, eax
-    mov dword [monsters + edi + MONSTER_HP], 10
-    mov dword [monsters + edi + MONSTER_ATK], 2
-    mov dword [monsters + edi + MONSTER_GOLD], 5
-    mov dword [monsters + edi + MONSTER_X], 3
-    mov dword [monsters + edi + MONSTER_Y], 2
-    mov dword [monsters + edi + MONSTER_DEAD], 0
-    
-    mov ecx, [monsters + edi + MONSTER_Y]
-    imul ecx, map_line
-    
-    mov ebx, [monsters + edi + MONSTER_X]
-    add ecx, ebx
-    
-    mov byte [map_data + ecx], 'M'
-
-    ;push dword [monsters + eax + MONSTER_HP]
-    ;call print_num
-
-    pop ebp
-    ret
-
-monster_find:
-    push ebp
-    mov ebp, esp
-    mov eax, [ebp + 8]
-    mov ebx, [ebp + 12]
-
-    mov ecx, 0
