@@ -192,6 +192,20 @@ _main:
         mov eax, [player_pos]
         add eax, map_line
 
+        push eax ; preserve eax
+
+        push eax
+        call map_index_coord
+
+        push eax
+        push edx
+        call monster_find
+
+        push eax
+        call print_num
+
+        pop eax ; restore eax
+
         cmp byte [map_data + eax], '.'
         jne .update
 
@@ -271,12 +285,15 @@ map_index_coord:
     mov ebp, esp
     mov eax, [ebp + 8]  ; index
 
-    sub eax, 
-    imul ebx, map_line
-    add eax, ebx
+    mov edx, 0
+    mov ebx, map_line
+    idiv ebx
+
+    ; edx = x
+    ; eax = y
 
     pop ebp
-    ret 8
+    ret 4
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;; Monsters
@@ -334,21 +351,23 @@ monster_find:
         jmp .monster_find_loop
     
     .monster_found:
-        ; mov eax, ecx
+        mov esi, ecx
 
         push monster_found_length
         push monster_found
         call print_char
 
+        mov eax, esi
+
         pop ebp
         ret 8
 
     .monster_not_found:
-        ; mov eax, -1
-
         push monster_nfound_length
         push monster_nfound
         call print_char
+
+        mov eax, -1
 
         pop ebp
         ret 8
