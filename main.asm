@@ -14,13 +14,15 @@ STD_INPUT_HANDLE    equ -10 ; -10 é o input no console (stdout)
 
 MAX_MONSTERS        equ 12
 
-MONSTER_HP          equ 0      ; dword (bytes offset 0)
-MONSTER_ATK         equ 4
-MONSTER_GOLD        equ 8
-MONSTER_X           equ 12
-MONSTER_Y           equ 16
-MONSTER_DEAD        equ 20
-MONSTER_SIZE        equ 24
+MONSTER_HEADER      equ 0      ; dword (bytes offset 0)
+MONSTER_HP          equ 4
+MONSTER_ATK         equ 8
+MONSTER_GOLD        equ 12
+MONSTER_X           equ 16
+MONSTER_Y           equ 20
+MONSTER_DEAD        equ 24
+MONSTER_PAD1        equ 28
+MONSTER_SIZE        equ 32
 
 global _main
 
@@ -176,6 +178,13 @@ _main:
         mov eax, [player_pos]
         sub eax, map_line
 
+        push eax ; preserve eax
+
+        push eax
+        call monster_search
+
+        pop eax ; restore eax
+
         cmp byte [map_data + eax], '.'
         jne .update
 
@@ -195,14 +204,7 @@ _main:
         push eax ; preserve eax
 
         push eax
-        call map_index_coord
-
-        push eax
-        push edx
-        call monster_find
-
-        push eax
-        call print_num
+        call monster_search
 
         pop eax ; restore eax
 
@@ -222,6 +224,13 @@ _main:
         mov eax, [player_pos]
         add eax, 1
 
+        push eax ; preserve eax
+
+        push eax
+        call monster_search
+
+        pop eax ; restore eax
+
         cmp byte [map_data + eax], '.'
         jne .update
 
@@ -237,6 +246,13 @@ _main:
     .key_left:
         mov eax, [player_pos]
         sub eax, 1
+
+        push eax ; preserve eax
+
+        push eax
+        call monster_search
+
+        pop eax ; restore eax
 
         cmp byte [map_data + eax], '.'
         jne .update
@@ -299,22 +315,48 @@ map_index_coord:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;; Monsters
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+monster_search:
+    push ebp,
+    mov ebp, esp
+    mov eax, [ebp + 8]
+
+    push eax
+    call map_index_coord
+
+    push eax
+    push edx
+    call monster_find
+
+    cmp eax, -1
+    jne .monster_fight
+
+    pop ebp
+    ret 4
+
+    .monster_fight:
+        push 5
+        push eax
+        call monster_take_damage
+
+        pop ebp
+        ret 4
+
 monster_spawn:
     push ebp
     mov ebp, esp
     mov eax, [ebp + 8]
 
     imul eax, MONSTER_SIZE
-    mov edi, eax
-    mov dword [monsters + edi + MONSTER_HP], 10
-    mov dword [monsters + edi + MONSTER_ATK], 2
-    mov dword [monsters + edi + MONSTER_GOLD], 5
-    mov dword [monsters + edi + MONSTER_X], 3
-    mov dword [monsters + edi + MONSTER_Y], 2
-    mov dword [monsters + edi + MONSTER_DEAD], 0
+    mov esi, eax
+    mov dword [monsters + esi + MONSTER_HP], 10
+    mov dword [monsters + esi + MONSTER_ATK], 2
+    mov dword [monsters + esi + MONSTER_GOLD], 5
+    mov dword [monsters + esi + MONSTER_X], 3
+    mov dword [monsters + esi + MONSTER_Y], 2
+    mov dword [monsters + esi + MONSTER_DEAD], 0
 
-    push dword [monsters + edi + MONSTER_Y]
-    push dword [monsters + edi + MONSTER_X]
+    push dword [monsters + esi + MONSTER_Y]
+    push dword [monsters + esi + MONSTER_X]
     call map_coord_index
     
     mov byte [map_data + eax], 'M'
@@ -322,29 +364,62 @@ monster_spawn:
     pop ebp
     ret 4
 
+monster_take_damage:
+    push ebp
+    mov ebp, esp
+    mov edi, [ebp + 8]
+    mov esi, [ebp + 12]
+
+    imul edi, MONSTER_SIZE
+
+    mov eax, dword [monsters + edi + MONSTER_HP]
+    sub eax, esi
+    mov dword [monsters + edi + MONSTER_HP], eax
+
+    cmp eax, 0
+    jle .monster_died
+
+    pop ebp
+    ret 8
+
+    .monster_died:
+        mov dword [monsters + edi + MONSTER_DEAD], 1
+        
+        push dword [monsters + edi + MONSTER_Y]
+        push dword [monsters + edi + MONSTER_X]
+        call map_coord_index
+
+        mov byte [map_data + eax], '.'
+
+        pop ebp
+        ret 8
+    
+
 monster_find:
     push ebp
     mov ebp, esp
     mov eax, [ebp + 8]  ; X
     mov ebx, [ebp + 12] ; Y
 
-    mov esi, monsters
     mov ecx, 0
 
     .monster_find_loop:
         cmp ecx, MAX_MONSTERS
         je .monster_not_found
 
-        mov edx, [monsters + ecx + MONSTER_X]
-        cmp eax, edx
+        mov edx, ecx
+        imul edx, MONSTER_SIZE
+
+        mov esi, [monsters + edx + MONSTER_X]
+        cmp eax, esi
         je .monster_x_eq
 
         inc ecx
         jmp .monster_find_loop
     
     .monster_x_eq:
-        mov edx, [monsters + ecx + MONSTER_Y]
-        cmp ebx, edx
+        mov esi, [monsters + edx + MONSTER_Y]
+        cmp ebx, esi
         je .monster_found
 
         inc ecx
