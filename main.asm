@@ -6,7 +6,6 @@ extern _GetStdHandle@4  ; 1 parametro
 extern _SetConsoleCursorPosition@8
 extern _ReadConsoleInputA@16
 extern _Sleep@4
-extern _
 
 STD_OUT_HANDLE      equ -11 ; -11 é basicamente um ID do windows que representa o output no console (stdin)
 STD_INPUT_HANDLE    equ -10 ; -10 é o input no console (stdout)
@@ -14,7 +13,7 @@ STD_INPUT_HANDLE    equ -10 ; -10 é o input no console (stdout)
 
 MAX_MONSTERS        equ 12
 
-MONSTER_HEADER      equ 0      ; dword (bytes offset 0)
+MONSTER             equ 0      ; dword (bytes offset 0)
 MONSTER_HP          equ 4
 MONSTER_ATK         equ 8
 MONSTER_GOLD        equ 12
@@ -40,19 +39,34 @@ section .data
     num_divider dd 10
 
     map_data db \
-    "########", 13,10, \
-    "#......#", 13,10, \
-    "#......#", 13,10, \
-    "#......#", 13,10, \
-    "########", 13,10, 13,10, 0
+    "########                    #####                                                                 ", 13,10, \
+    "#......######################...#                                                                 ", 13,10, \
+    "#......|....................|...#                                                                 ", 13,10, \
+    "#....f.######################...#                                                                 ", 13,10, \
+    "########                    #...#                                                                 ", 13,10, \
+    "                            ##-##                                                                 ", 13,10, \
+    "                                                                                                  ", 13,10, \
+    "                                                                                                  ", 13,10, \
+    "                                                                                                  ", 13,10, \
+    "                                                                                                  ", 13,10, \
+    "                                                                                                  ", 13,10, \
+    "                                                                                                  ", 13,10, \
+    "                                                                                                  ", 13,10, \
+    "                                                                                                  ", 13,10, \
+    "                                                                                                  ", 13,10, \
+    "                                                                                                  ", 13,10, \
+    "                                                                                                  ", 13,10, \
+    "                                                                                                  ", 13,10, 0
     map_length equ $-map_data        ; Extraimos o tamanho da mensagem
-    map_line equ 10
+    map_line equ 100
+    map_space db " "
 
-    player_pos dd 23
+    player_pos dd 102
     player_hp dd 15
     player_atk dd 1
     player_food dd 50
     player_gold dd 0
+    player_view dd 5
 
     monster_found db "Found!"
     monster_found_length equ $-monster_found
@@ -70,12 +84,12 @@ section .data
     hud_gold_len equ $-hud_gold
 
     game_over_msg db \
-    "--------------------", 13,10, \
-    "------GAME OVER-----", 13,10, \
-    "--------/   )-------", 13,10, \
-    "-------(#  #/-------", 13,10, \
-    "--------||||--------", 13,10, \
-    "--------------------", 13,10, 13,10, 0
+    "                                                                                                  ", 13,10, \
+    "                                       ------GAME OVER-----                                       ", 13,10, \
+    "                                       --------/   )-------                                       ", 13,10, \
+    "                                       -------(#  #/-------                                       ", 13,10, \
+    "                                       --------||||--------                                       ", 13,10, \
+    "                                                                                                  ", 13,10, 13,10, 0
     game_over_msg_len equ $-game_over_msg
 
 section .text
@@ -107,9 +121,21 @@ _main:
         cmp al, 0
         je .draw_hud
 
-        push 1  
-        push esi                      
-        call print_char      
+        ; push 1
+        ; push esi
+        ; call print_char
+
+        mov eax, esi
+        sub eax, map_data   ; eax = index = ponteiro - base
+        push eax            ; push index (map_view espera índice)
+        call map_view
+
+        ; push esi
+
+        ; push esi
+        ; call map_view
+
+        ; pop esi  
 
         inc esi
         jmp .draw
@@ -284,6 +310,67 @@ _main:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;; Map
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+map_view:
+    push ebp
+    mov ebp, esp
+
+    mov eax, [ebp + 8]      ; eax = index
+    mov edi, eax            ; edi = index (vamos usar edi sempre para o index)
+
+    ; pegar o caractere original naquele índice
+    mov al, [map_data + edi] ; al = caractere
+
+    ; se for CR (13) ou LF (10) -> imprimir o caractere original (manter quebras)
+    cmp al, 13
+    je .print_original_char
+    cmp al, 10
+    je .print_original_char
+
+    ; converter index -> (tile_x, tile_y)
+    push edi
+    call map_index_coord     ; returns: edx = x, eax = y
+    mov ebx, edx             ; ebx = tile_x
+    mov ecx, eax             ; ecx = tile_y
+
+    ; converter player_pos -> (player_x, player_y)
+    mov eax, [player_pos]
+    push eax
+    call map_index_coord     ; returns: edx = player_x, eax = player_y
+    mov esi, edx             ; esi = player_x
+    mov edx, eax             ; edx = player_y
+
+    ; abs(tile_x - player_x) <= player_view ?
+    mov eax, ebx             ; eax = tile_x
+    sub eax, esi             ; eax = tile_x - player_x
+    push eax
+    call absolute_value      ; eax = abs diff x
+    cmp eax, [player_view]
+    jg .print_space
+
+    ; abs(tile_y - player_y) <= player_view ?
+    mov eax, ecx             ; eax = tile_y
+    sub eax, edx             ; eax = tile_y - player_y
+    push eax
+    call absolute_value      ; eax = abs diff y
+    cmp eax, [player_view]
+    jg .print_space
+
+    ; dentro da visão -> imprimir o caractere original
+    .print_original_char:
+        lea eax, [map_data + edi] ; eax = &map_data[index]
+        push 1
+        push eax
+        call print_char
+        pop ebp
+        ret 4
+
+    .print_space:
+        push 1
+        push map_space
+        call print_char
+        pop ebp
+        ret 4
+
 map_coord_index:
     push ebp
     mov ebp, esp
@@ -426,22 +513,12 @@ monster_find:
         jmp .monster_find_loop
     
     .monster_found:
-        mov esi, ecx
-
-        push monster_found_length
-        push monster_found
-        call print_char
-
-        mov eax, esi
+        mov eax, ecx
 
         pop ebp
         ret 8
 
     .monster_not_found:
-        push monster_nfound_length
-        push monster_nfound
-        call print_char
-
         mov eax, -1
 
         pop ebp
@@ -500,3 +577,20 @@ print_char:
 
     pop ebp
     ret 8
+
+absolute_value:
+    push ebp
+    mov ebp, esp
+    mov eax, [ebp + 8]
+
+    cmp eax, 0
+    jge .abs_done
+
+    neg eax
+
+    pop ebp
+    ret 4
+
+    .abs_done:
+        pop ebp
+        ret 4
