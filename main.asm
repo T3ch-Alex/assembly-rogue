@@ -38,10 +38,12 @@ section .data
 
     num_divider dd 10
 
+    end_of_line db 13, 10
+
     map_data db \
     "########                    #####                                                                 ", 13,10, \
     "#......######################...#                                                                 ", 13,10, \
-    "#......|....................|...#                                                                 ", 13,10, \
+    "#...............................#                                                                 ", 13,10, \
     "#....f.######################...#                                                                 ", 13,10, \
     "########                    #...#                                                                 ", 13,10, \
     "                            ##-##                                                                 ", 13,10, \
@@ -125,17 +127,12 @@ _main:
         ; push esi
         ; call print_char
 
-        mov eax, esi
-        sub eax, map_data   ; eax = index = ponteiro - base
-        push eax            ; push index (map_view espera índice)
+        push esi
+
+        push esi
         call map_view
 
-        ; push esi
-
-        ; push esi
-        ; call map_view
-
-        ; pop esi  
+        pop esi  
 
         inc esi
         jmp .draw
@@ -313,63 +310,77 @@ _main:
 map_view:
     push ebp
     mov ebp, esp
+    mov eax, [ebp + 8]          ; map index pointer
 
-    mov eax, [ebp + 8]      ; eax = index
-    mov edi, eax            ; edi = index (vamos usar edi sempre para o index)
+    push eax                    ; preserve map index pointer
+    sub eax, map_data
+    push eax                    ; preserve map index
 
-    ; pegar o caractere original naquele índice
-    mov al, [map_data + edi] ; al = caractere
+    push eax                    ; current map index
+    call map_index_coord        ; edx = X, eax = Y
 
-    ; se for CR (13) ou LF (10) -> imprimir o caractere original (manter quebras)
-    cmp al, 13
-    je .print_original_char
-    cmp al, 10
-    je .print_original_char
+    mov edi, edx
+    mov esi, eax
+        
+    push dword [player_pos]     ; current player map index
+    call map_index_coord        ; edx = X, eax = Y
 
-    ; converter index -> (tile_x, tile_y)
-    push edi
-    call map_index_coord     ; returns: edx = x, eax = y
-    mov ebx, edx             ; ebx = tile_x
-    mov ecx, eax             ; ecx = tile_y
+    mov ebx, edx,
+    mov ecx, eax
 
-    ; converter player_pos -> (player_x, player_y)
-    mov eax, [player_pos]
-    push eax
-    call map_index_coord     ; returns: edx = player_x, eax = player_y
-    mov esi, edx             ; esi = player_x
-    mov edx, eax             ; edx = player_y
+    .map_view_check_coords:
+        sub edi, eax            ; checking for X
+        push edi
+        call absolute_value
+        cmp eax, [player_view]  ; if difference > player_view
+        jg .map_view_check_g
 
-    ; abs(tile_x - player_x) <= player_view ?
-    mov eax, ebx             ; eax = tile_x
-    sub eax, esi             ; eax = tile_x - player_x
-    push eax
-    call absolute_value      ; eax = abs diff x
-    cmp eax, [player_view]
-    jg .print_space
+        sub esi, edx            ; checking for Y
+        push esi
+        call absolute_value
+        cmp eax, [player_view]  ; if difference > player_view
+        jg .map_view_check_g
 
-    ; abs(tile_y - player_y) <= player_view ?
-    mov eax, ecx             ; eax = tile_y
-    sub eax, edx             ; eax = tile_y - player_y
-    push eax
-    call absolute_value      ; eax = abs diff y
-    cmp eax, [player_view]
-    jg .print_space
+        pop eax                 ; restore map index
+        pop eax                 ; restore map index pointer
 
-    ; dentro da visão -> imprimir o caractere original
-    .print_original_char:
-        lea eax, [map_data + edi] ; eax = &map_data[index]
         push 1
         push eax
         call print_char
+
         pop ebp
         ret 4
 
-    .print_space:
-        push 1
-        push map_space
-        call print_char
-        pop ebp
-        ret 4
+        .map_view_check_g:
+            pop eax             ; restore map index
+            pop eax             ; restore map index pointer
+
+            mov al, [eax]
+
+            cmp al, 13
+            je .map_view_print_new_line
+
+            cmp al, 10
+            je .map_view_print_line_end
+
+            push 1
+            push map_space
+            call print_char
+
+            pop ebp
+            ret 4
+
+            .map_view_print_new_line:
+                push 2
+                push end_of_line
+                call print_char
+
+                pop ebp
+                ret 4
+            
+            .map_view_print_line_end:
+                pop ebp
+                ret 4
 
 map_coord_index:
     push ebp
