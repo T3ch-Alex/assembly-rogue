@@ -115,17 +115,10 @@ _main:
 
         mov esi, map_data       ; Ponteiro para o começo do mapa
 
-        push 100
-        call _Sleep@4
-
     .draw:
         mov al, [esi]           ; Valor do caractere atual
         cmp al, 0
         je .draw_hud
-
-        ; push 1
-        ; push esi
-        ; call print_char
 
         push esi
 
@@ -329,14 +322,14 @@ map_view:
     mov ecx, eax
 
     .map_view_check_coords:
-        sub edi, eax            ; checking for X
-        push edi
+        sub ebx, edi            ; checking for X
+        push ebx
         call absolute_value
         cmp eax, [player_view]  ; if difference > player_view
         jg .map_view_check_g
 
-        sub esi, edx            ; checking for Y
-        push esi
+        sub ecx, esi            ; checking for Y
+        push ecx
         call absolute_value
         cmp eax, [player_view]  ; if difference > player_view
         jg .map_view_check_g
@@ -457,7 +450,7 @@ monster_spawn:
     push dword [monsters + esi + MONSTER_X]
     call map_coord_index
     
-    mov byte [map_data + eax], 'M'
+    mov byte [map_data + eax], '~'
 
     pop ebp
     ret 4
