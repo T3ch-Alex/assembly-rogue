@@ -410,32 +410,34 @@ monsters_init:
     ;     cmp esi, MAX_MONSTERS
     ;     je .monsters_init_done
 
-    imul esi, MONSTER_SIZE
+    mov edi, esi
+    imul edi, MONSTER_SIZE
 
-    mov byte [monsters + esi + MONSTER_CHAR], '~'
-    mov dword [monsters + esi + MONSTER_HP], 4
-    mov dword [monsters + esi + MONSTER_ATK], 1
-    mov dword [monsters + esi + MONSTER_GOLD], 1
-    mov dword [monsters + esi + MONSTER_DEAD], 0
-    mov dword [monsters + esi + MONSTER_SPAWNED], 0
-    mov dword [monsters + esi + MONSTER_TRIGGER_X], 6
-    mov dword [monsters + esi + MONSTER_TRIGGER_Y], 2
-    mov dword [monsters + esi + MONSTER_X], 1
-    mov dword [monsters + esi + MONSTER_Y], 1
+    mov byte [monsters + edi + MONSTER_CHAR], '~'
+    mov dword [monsters + edi + MONSTER_HP], 4
+    mov dword [monsters + edi + MONSTER_ATK], 1
+    mov dword [monsters + edi + MONSTER_GOLD], 1
+    mov dword [monsters + edi + MONSTER_DEAD], 0
+    mov dword [monsters + edi + MONSTER_SPAWNED], 0
+    mov dword [monsters + edi + MONSTER_TRIGGER_X], 6
+    mov dword [monsters + edi + MONSTER_TRIGGER_Y], 2
+    mov dword [monsters + edi + MONSTER_X], 1
+    mov dword [monsters + edi + MONSTER_Y], 1
 
     inc esi
-    imul esi, MONSTER_SIZE
+    mov edi, esi
+    imul edi, MONSTER_SIZE
     
-    mov byte [monsters + esi + MONSTER_CHAR], 'G'
-    mov dword [monsters + esi + MONSTER_HP], 10
-    mov dword [monsters + esi + MONSTER_ATK], 1
-    mov dword [monsters + esi + MONSTER_GOLD], 1
-    mov dword [monsters + esi + MONSTER_DEAD], 0
-    mov dword [monsters + esi + MONSTER_SPAWNED], 0
-    mov dword [monsters + esi + MONSTER_TRIGGER_X], 18
-    mov dword [monsters + esi + MONSTER_TRIGGER_Y], 2
-    mov dword [monsters + esi + MONSTER_X], 28
-    mov dword [monsters + esi + MONSTER_Y], 2
+    mov byte [monsters + edi + MONSTER_CHAR], 'G'
+    mov dword [monsters + edi + MONSTER_HP], 10
+    mov dword [monsters + edi + MONSTER_ATK], 1
+    mov dword [monsters + edi + MONSTER_GOLD], 1
+    mov dword [monsters + edi + MONSTER_DEAD], 0
+    mov dword [monsters + edi + MONSTER_SPAWNED], 0
+    mov dword [monsters + edi + MONSTER_TRIGGER_X], 18
+    mov dword [monsters + edi + MONSTER_TRIGGER_Y], 2
+    mov dword [monsters + edi + MONSTER_X], 28
+    mov dword [monsters + edi + MONSTER_Y], 2
 
     ; .monsters_init_done:
     pop ebp
@@ -459,8 +461,8 @@ monsters_search:
     pop eax ;restore
     pop edx ;restore
 
-    push eax
     push edx
+    push eax
     call monsters_find
 
     cmp eax, -1
@@ -470,7 +472,7 @@ monsters_search:
     ret 4
 
     .monster_fight:
-        push 5
+        push dword [player_atk]
         push eax
         call monsters_take_damage
 
@@ -501,6 +503,10 @@ monsters_take_damage:
     mov ebp, esp
     mov edi, [ebp + 8]
     mov esi, [ebp + 12]
+
+    mov ebx, [player_food]
+    sub ebx, 1
+    mov dword [player_food], ebx
 
     imul edi, MONSTER_SIZE
 
