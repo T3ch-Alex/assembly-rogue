@@ -12,7 +12,6 @@ STD_INPUT_HANDLE    equ -10 ; -10 é o input no console (stdout)
                             ; -12 é erro padrão (stderr)
 
 MAX_MONSTERS        equ 12
-
 MONSTER             equ 0      ; dword (bytes offset 0)
 MONSTER_HP          equ 4
 MONSTER_ATK         equ 8
@@ -24,26 +23,39 @@ MONSTER_TRIGGER_Y   equ 28
 MONSTER_DEAD        equ 32
 MONSTER_SPAWNED     equ 36
 MONSTER_CHAR        equ 40
-MONSTER_SIZE        equ 44
+MONSTER_NAME        equ 44
+MONSTER_NAME_LEN    equ 48
+MONSTER_DROP        equ 52
+MONSTER_SIZE        equ 56
+
+MAX_ITEMS           equ 10
+ITEM                equ 0
+ITEM_CHAR           equ 4
+ITEM_ATK            equ 8
+ITEM_WPN            equ 12
+ITEM_KEY            equ 16
+ITEM_NAME           equ 20
+ITEM_NAME_LEN       equ 24
+ITEM_SIZE           equ 28
 
 global _main
 
 section .bss
-    num_buffer resb 1
+    num_buffer          resb 1
 
-    monsters resb MONSTER_SIZE * MAX_MONSTERS
+    monsters            resb MONSTER_SIZE * MAX_MONSTERS
+    items               resb MAX_ITEMS * ITEM_SIZE
+    inventory           resb 2 * ITEM_SIZE
 
 section .data
-    output_handle dd 0
-    input_handle dd 0
-    input_record times 32 db 0
-    events_read dd 0
+    output_handle       dd 0
+    input_handle        dd 0
+    input_record        times 32 db 0
+    events_read         dd 0
 
-    num_divider dd 10
+    num_divider         dd 10
 
-    end_of_line db 13, 10
-
-    map_data db \
+    map_data            db \
     "########                    #####                                                                 ", 13,10, \
     "#......######################...#                                                                 ", 13,10, \
     "#...............................#                                                                 ", 13,10, \
@@ -62,48 +74,67 @@ section .data
     "                                                                                                  ", 13,10, \
     "                                                                                                  ", 13,10, \
     "                                                                                                  ", 13,10, 0
-    map_length equ $-map_data        ; Extraimos o tamanho da mensagem
-    map_line equ 100
-    map_space db " "
+    map_length          equ $-map_data        ; Extraimos o tamanho da mensagem
+    map_line            equ 100
 
-    player_pos dd 102
-    player_hp dd 15
-    player_atk dd 1
-    player_food dd 50
-    player_gold dd 0
-    player_view dd 5
+    player_pos          dd 102
+    player_hp           dd 15
+    player_atk          dd 1
+    player_food         dd 50
+    player_gold         dd 0
+    player_view         dd 5
 
-    monster_found db "Found!"
-    monster_found_length equ $-monster_found
+    name_snake          db "a Snake!       ", 0
+    name_snake_len      equ $-name_snake
+    name_goblin         db "a Goblin!      ", 0
+    name_goblin_len     equ $-name_goblin
 
-    monster_nfound db "Not Found!"
-    monster_nfound_length equ $-monster_nfound
+    key                 db "a key!         ", 0
+    key_len             equ $-key
 
-    hud_hp db "HP:"
-    hud_hp_len equ $-hud_hp
-    hud_atk db " ATK:"
-    hud_atk_len equ $-hud_atk
-    hud_food db " FOOD:"
-    hud_food_len equ $-hud_food
-    hud_gold db " GOLD:"
-    hud_gold_len equ $-hud_gold
+    weapon              db "a weapon!      ", 0
+    weapon_len          equ $-weapon
 
-    game_over_msg db \
+    found_msg           db "You found "
+    found_msg_len       equ $-found_msg
+    killed_msg          db "You killed "
+    killed_msg_len      equ $-killed_msg
+
+    line_end            db 13, 10
+    line_end_len        equ $-line_end
+    line_clean          db "                                                                                "
+    line_clean_len      equ $-line_clean
+    line_space          db " "
+    line_space_len      equ $-line_space
+
+    hud_hp              db "HP:"
+    hud_hp_len          equ $-hud_hp
+    hud_atk             db " ATK:"
+    hud_atk_len         equ $-hud_atk
+    hud_food            db " FOOD:"
+    hud_food_len        equ $-hud_food
+    hud_gold            db " GOLD:"
+    hud_gold_len        equ $-hud_gold
+    hud_output          db "INFO: "
+    hud_output_len      equ $-hud_output
+
+    game_over_msg       db \
     "                                                                                                  ", 13,10, \
     "                                       ------GAME OVER-----                                       ", 13,10, \
     "                                       --------/   )-------                                       ", 13,10, \
     "                                       -------(#  #/-------                                       ", 13,10, \
     "                                       --------||||--------                                       ", 13,10, \
     "                                                                                                  ", 13,10, 13,10, 0
-    game_over_msg_len equ $-game_over_msg
+    game_over_msg_len   equ $-game_over_msg
 
 section .text
 _main:
     call monsters_init
+    call items_init
 
-    push STD_OUT_HANDLE     ; Empurramos a constante pra pilha
-    call _GetStdHandle@4    ; Chamamos a função
-    mov [output_handle], eax            ; Guardamos o resultado temporariamente
+    push STD_OUT_HANDLE     
+    call _GetStdHandle@4    
+    mov [output_handle], eax        
 
     push STD_INPUT_HANDLE
     call _GetStdHandle@4
@@ -116,12 +147,12 @@ _main:
         call _SetConsoleCursorPosition@8
 
         cmp dword [player_food], 0
-        je .game_over
+        jle .game_over
 
         mov esi, map_data       ; Ponteiro para o começo do mapa
 
     .draw:
-        mov al, [esi]           ; Valor do caractere atual
+        mov al, [esi]    
         cmp al, 0
         je .draw_hud
 
@@ -165,6 +196,16 @@ _main:
         push dword [player_gold]
         call print_num
 
+        push line_end_len
+        push line_end
+        call print_char
+
+        push hud_output_len
+        push hud_output
+        call print_char
+
+        
+
     .input:
         push events_read
         push 1
@@ -201,6 +242,11 @@ _main:
 
         push eax ; preserve eax
         push eax
+        call items_search
+        pop eax ; restore eax
+
+        push eax ; preserve eax
+        push eax
         call monsters_search
         pop eax ; restore eax
 
@@ -208,7 +254,7 @@ _main:
         jne .update
 
         mov byte [map_data + eax + map_line], '.'
-        mov byte [map_data + eax], '@'
+        mov byte [map_data + eax], 'o'
         
         mov [player_pos], eax
 
@@ -222,6 +268,11 @@ _main:
 
         push eax ; preserve eax
         push eax
+        call items_search
+        pop eax ; restore eax
+
+        push eax ; preserve eax
+        push eax
         call monsters_search
         pop eax ; restore eax
 
@@ -229,7 +280,7 @@ _main:
         jne .update
 
         mov byte [map_data + eax - map_line], '.'
-        mov byte [map_data + eax], '@'
+        mov byte [map_data + eax], 'o'
 
         mov [player_pos], eax
 
@@ -243,6 +294,11 @@ _main:
 
         push eax ; preserve eax
         push eax
+        call items_search
+        pop eax ; restore eax
+
+        push eax ; preserve eax
+        push eax
         call monsters_search
         pop eax ; restore eax
 
@@ -250,7 +306,7 @@ _main:
         jne .update
 
         mov byte [map_data + eax - 1], '.'
-        mov byte [map_data + eax], '@'
+        mov byte [map_data + eax], 'o'
 
         mov [player_pos], eax
 
@@ -264,6 +320,11 @@ _main:
 
         push eax ; preserve eax
         push eax
+        call items_search
+        pop eax ; restore eax
+
+        push eax ; preserve eax
+        push eax
         call monsters_search
         pop eax ; restore eax
 
@@ -271,7 +332,7 @@ _main:
         jne .update
 
         mov byte [map_data + eax + 1], '.'
-        mov byte [map_data + eax], '@'
+        mov byte [map_data + eax], 'o'
 
         mov [player_pos], eax
 
@@ -351,7 +412,7 @@ map_view:
             je .map_view_print_line_end
 
             push 1
-            push map_space
+            push line_space
             call print_char
 
             pop ebp
@@ -359,7 +420,7 @@ map_view:
 
             .map_view_print_new_line:
                 push 2
-                push end_of_line
+                push line_end
                 call print_char
 
                 pop ebp
@@ -397,7 +458,190 @@ map_index_coord:
     ret 4
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;; Monsters
+;;;;;;;;;;;;;;;;;;;;;;;;;;; #Items
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+items_init:
+    push ebp
+    mov ebp, esp
+
+    mov esi, 0
+
+    mov eax, esi
+    imul eax, ITEM_SIZE
+
+    mov dword [items + eax + ITEM_ATK], 0
+    mov byte [items + eax + ITEM_CHAR], 'f'
+    mov dword [items + eax + ITEM_KEY], 1
+    mov dword [items + eax + ITEM_WPN], 0
+    mov ecx, key
+    mov ebx, key_len
+    mov [items + eax + MONSTER_NAME], ecx
+    mov dword [items + eax + MONSTER_NAME_LEN], ebx
+
+    inc esi
+
+    mov eax, esi
+    imul eax, ITEM_SIZE
+
+    mov dword [items + eax + ITEM_ATK], 5
+    mov byte [items + eax + ITEM_CHAR], '!'
+    mov dword [items + eax + ITEM_KEY], 0
+    mov dword [items + eax + ITEM_WPN], 1
+    mov ecx, weapon
+    mov ebx, weapon_len
+    mov [items + eax + MONSTER_NAME], ecx
+    mov dword [items + eax + MONSTER_NAME_LEN], ebx
+
+    inc esi
+
+    mov eax, esi
+    imul eax, ITEM_SIZE
+
+    mov dword [items + eax + ITEM_ATK], 10
+    mov byte [items + eax + ITEM_CHAR], '/'
+    mov dword [items + eax + ITEM_KEY], 0
+    mov dword [items + eax + ITEM_WPN], 1
+    mov ecx, weapon
+    mov ebx, weapon_len
+    mov [items + eax + MONSTER_NAME], ecx
+    mov dword [items + eax + MONSTER_NAME_LEN], ebx
+
+    inc esi
+
+    mov eax, esi
+    imul eax, ITEM_SIZE
+
+    mov dword [items + eax + ITEM_ATK], 10
+    mov byte [items + eax + ITEM_CHAR], 'i'
+    mov dword [items + eax + ITEM_KEY], 0
+    mov dword [items + eax + ITEM_WPN], 1
+    mov ecx, weapon
+    mov ebx, weapon_len
+    mov [items + eax + MONSTER_NAME], ecx
+    mov dword [items + eax + MONSTER_NAME_LEN], ebx
+
+    pop ebp
+    ret
+
+items_search:
+    push ebp,
+    mov ebp, esp
+    mov eax, [ebp + 8]
+
+    push eax            ; save index
+
+    add eax, map_data
+
+    push eax            ; item character in map
+    call items_find
+
+    cmp eax, -1         ; item index in items
+    jne .items_collect
+
+    pop eax             ; restore index
+
+    pop ebp
+    ret 4
+
+    .items_collect:
+        cmp dword [items + eax + ITEM_WPN], 1
+        je .items_collect_wpn
+
+        cmp dword [items + eax + ITEM_KEY], 1
+        je .items_collect_key
+
+        pop ebp
+        ret 4
+    .items_collect_wpn:
+        mov ebx, [items + eax + ITEM_ATK]
+        mov dword [inventory + 0 + ITEM_ATK], ebx
+
+        mov al, [items + eax + ITEM_CHAR]
+        mov byte [inventory + 0 + ITEM_CHAR], al
+
+        mov ebx, [items + eax + ITEM_KEY]
+        mov dword [inventory + 0 + ITEM_KEY], ebx
+
+        mov ebx, [items + eax + ITEM_WPN]
+        mov dword [inventory + 0 + ITEM_WPN], ebx
+
+        push found_msg_len
+        push found_msg
+        call print_char
+
+        push weapon_len
+        push weapon
+        call print_char
+
+        pop eax
+        mov byte [map_data + eax], '.'
+
+        pop ebp
+        ret 4
+
+    .items_collect_key:
+        mov ebx, [items + eax + ITEM_ATK]
+        mov dword [inventory + 1 + ITEM_ATK], ebx
+
+        mov al, [items + eax + ITEM_CHAR]
+        mov byte [inventory + 1 + ITEM_CHAR], al
+
+        mov ebx, [items + eax + ITEM_KEY]
+        mov dword [inventory + 1 + ITEM_KEY], ebx
+
+        mov ebx, [items + eax + ITEM_WPN]
+        mov dword [inventory + 1 + ITEM_WPN], ebx
+
+        push found_msg_len
+        push found_msg
+        call print_char
+
+        push key_len
+        push key
+        call print_char
+
+        pop eax
+        mov byte [map_data + eax], '.'
+
+        pop ebp
+        ret 4
+
+
+items_find:
+    push ebp
+    mov ebp, esp
+    mov eax, [ebp + 8]
+
+    mov esi, 0
+
+    mov al, byte [eax]
+
+    .items_find_loop:
+        cmp esi, MAX_ITEMS
+        jge .items_not_found
+
+        mov ebx, esi
+        imul ebx, ITEM_SIZE
+
+        mov bl, [items + ebx + ITEM_CHAR]
+        cmp bl, al
+        je .items_found
+
+        inc esi
+        jmp .items_find_loop
+
+    .items_found:
+        mov eax, esi
+        pop ebp
+        ret 4
+    .items_not_found:
+        mov eax, -1
+        pop ebp
+        ret 4
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;; #Monsters
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 monsters_init:
@@ -406,13 +650,13 @@ monsters_init:
 
     mov esi, 0
 
-    ; .monsters_init_loop:
-    ;     cmp esi, MAX_MONSTERS
-    ;     je .monsters_init_done
-
     mov edi, esi
     imul edi, MONSTER_SIZE
 
+    mov eax, name_snake
+    mov ebx, name_snake_len
+    mov [monsters + edi + MONSTER_NAME], eax
+    mov dword [monsters + edi + MONSTER_NAME_LEN], ebx
     mov byte [monsters + edi + MONSTER_CHAR], '~'
     mov dword [monsters + edi + MONSTER_HP], 4
     mov dword [monsters + edi + MONSTER_ATK], 1
@@ -428,7 +672,11 @@ monsters_init:
     mov edi, esi
     imul edi, MONSTER_SIZE
     
-    mov byte [monsters + edi + MONSTER_CHAR], 'G'
+    mov eax, name_goblin
+    mov ebx, name_goblin_len
+    mov [monsters + edi + MONSTER_NAME], eax
+    mov dword [monsters + edi + MONSTER_NAME_LEN], ebx
+    mov byte [monsters + edi + MONSTER_CHAR], 'g'
     mov dword [monsters + edi + MONSTER_HP], 10
     mov dword [monsters + edi + MONSTER_ATK], 1
     mov dword [monsters + edi + MONSTER_GOLD], 1
@@ -468,6 +716,10 @@ monsters_search:
     cmp eax, -1
     jne .monster_fight
 
+    push line_clean_len
+    push line_clean
+    call print_char
+
     pop ebp
     ret 4
 
@@ -478,6 +730,7 @@ monsters_search:
 
         pop ebp
         ret 4
+
 
 monsters_spawn:
     push ebp
@@ -494,6 +747,17 @@ monsters_spawn:
     mov dword [monsters + esi + MONSTER_SPAWNED], 1
     mov bl, [monsters + esi + MONSTER_CHAR]
     mov [map_data + eax], bl
+
+    push found_msg_len
+    push found_msg
+    call print_char
+
+    mov eax, [monsters + esi + MONSTER_NAME]
+    mov ebx, [monsters + esi + MONSTER_NAME_LEN]
+
+    push ebx
+    push eax
+    call print_char
 
     pop ebp
     ret 4
@@ -528,6 +792,17 @@ monsters_take_damage:
         call map_coord_index
 
         mov byte [map_data + eax], '.'
+
+        push killed_msg_len
+        push killed_msg
+        call print_char
+
+        mov eax, [monsters + edi + MONSTER_NAME]
+        mov ebx, [monsters + edi + MONSTER_NAME_LEN]
+
+        push ebx
+        push eax
+        call print_char
 
         pop ebp
         ret 8
@@ -566,9 +841,6 @@ monsters_find_trigger:
         mov esi, ecx
 
         imul esi, MONSTER_SIZE
-        ; mov eax, [monsters + esi + MONSTER_SPAWNED]
-        ; cmp eax, 0
-        ; je .monster_not_found
 
         mov eax, [monsters + esi + MONSTER_DEAD]
         cmp eax, 1
@@ -711,5 +983,20 @@ absolute_value:
     ret 4
 
     .abs_done:
+        pop ebp
+        ret 4
+
+strlen:
+    push ebp
+    mov ebp, esp
+    mov esi, [ebp + 8]   ; ponteiro pra string
+    xor eax, eax         ; contador = 0
+    .strlen_loop:
+        cmp byte [esi], 0
+        je .strlen_done
+        inc esi
+        inc eax
+        jmp .strlen_loop
+    .strlen_done:
         pop ebp
         ret 4
