@@ -58,7 +58,7 @@ section .data
     map_data            db \
     "########                    #####                                                                 ", 13,10, \
     "#......######################...#                                                                 ", 13,10, \
-    "#...............................#                                                                 ", 13,10, \
+    "#......|........................#                                                                 ", 13,10, \
     "#....f.######################...#                                                                 ", 13,10, \
     "########                    #...#                                                                 ", 13,10, \
     "                            ##-##                                                                 ", 13,10, \
@@ -94,6 +94,12 @@ section .data
 
     weapon              db "a weapon!      ", 0
     weapon_len          equ $-weapon
+
+    door_v              db "|"
+    door_v_len          equ $-door_v
+
+    door_h              db "-"
+    door_h_len          equ $-door_h
 
     found_msg           db "You found "
     found_msg_len       equ $-found_msg
@@ -240,6 +246,9 @@ _main:
         mov eax, [player_pos]
         sub eax, map_line
 
+        push eax
+        call interact_search
+
         push eax ; preserve eax
         push eax
         call items_search
@@ -265,6 +274,9 @@ _main:
     .key_down:
         mov eax, [player_pos]
         add eax, map_line
+
+        push eax
+        call interact_search
 
         push eax ; preserve eax
         push eax
@@ -292,6 +304,9 @@ _main:
         mov eax, [player_pos]
         add eax, 1
 
+        push eax
+        call interact_search
+
         push eax ; preserve eax
         push eax
         call items_search
@@ -317,6 +332,9 @@ _main:
     .key_left:
         mov eax, [player_pos]
         sub eax, 1
+
+        push eax
+        call interact_search
 
         push eax ; preserve eax
         push eax
@@ -458,6 +476,45 @@ map_index_coord:
     ret 4
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;; #Interactables
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+interact_search:
+    push ebp
+    mov ebp, esp
+    mov eax, [ebp + 8]
+
+    mov esi, eax
+    add esi, map_data
+
+    mov bl, byte [esi]
+
+    cmp bl, [door_h]
+    je .door_found
+
+    cmp bl, [door_v]
+    je .door_found
+
+    pop ebp
+    ret 4
+
+    .door_found:
+        mov ebx, [inventory + 1 + ITEM_KEY]
+
+        cmp ebx, 1
+        je .has_key
+
+        pop ebp
+        ret 4
+
+        .has_key:
+            mov byte [map_data + eax], '.'
+            mov dword [inventory + 1 + ITEM_KEY], 0
+
+            pop ebp
+            ret 4
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;; #Items
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -557,8 +614,8 @@ items_search:
         mov ebx, [items + eax + ITEM_ATK]
         mov dword [inventory + 0 + ITEM_ATK], ebx
 
-        mov al, [items + eax + ITEM_CHAR]
-        mov byte [inventory + 0 + ITEM_CHAR], al
+        mov bl, [items + eax + ITEM_CHAR]
+        mov byte [inventory + 0 + ITEM_CHAR], bl
 
         mov ebx, [items + eax + ITEM_KEY]
         mov dword [inventory + 0 + ITEM_KEY], ebx
@@ -584,8 +641,8 @@ items_search:
         mov ebx, [items + eax + ITEM_ATK]
         mov dword [inventory + 1 + ITEM_ATK], ebx
 
-        mov al, [items + eax + ITEM_CHAR]
-        mov byte [inventory + 1 + ITEM_CHAR], al
+        mov bl, [items + eax + ITEM_CHAR]
+        mov byte [inventory + 1 + ITEM_CHAR], bl
 
         mov ebx, [items + eax + ITEM_KEY]
         mov dword [inventory + 1 + ITEM_KEY], ebx
